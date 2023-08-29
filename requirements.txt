@@ -1,0 +1,8 @@
+streamlit
+langchain
+python-dotenv
+faiss-cpu
+# faiss-gpu
+huggingface-hub
+InstructorEmbedding
+sentence_transformers
