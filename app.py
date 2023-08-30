@@ -7,6 +7,7 @@ from langchain.embeddings import HuggingFaceInstructEmbeddings
 from langchain.vectorstores import FAISS
 from langchain.llms import HuggingFaceHub
 from transformers import AutoTokenizer, AutoModel, AutoModelForSeq2SeqLM
+from transformers import BertTokenizer, BertLMHeadModel
 
 
 def get_text_chunks(text):
@@ -32,8 +33,11 @@ def get_llm():
     #     # model_kwargs={"temperature": 0.1, "max_length": 512}
     # )
 
-    llm = AutoModelForSeq2SeqLM.from_pretrained("google/flan-t5-xl")
-    tokenizer = AutoTokenizer.from_pretrained("google/flan-t5-xl")
+    llm = AutoModelForSeq2SeqLM.from_pretrained("google/flan-t5-large")
+    tokenizer = AutoTokenizer.from_pretrained("google/flan-t5-large")
+
+    # tokenizer = BertTokenizer.from_pretrained("bert-large-uncased")
+    # llm = BertLMHeadModel.from_pretrained("bert-large-uncased")
 
     return tokenizer, llm
 
@@ -87,8 +91,6 @@ def main():
         st.session_state.choice_count = 1
         st.experimental_rerun()
 
-    
-
     # st.write(st.session_state.choices)
 
     s = ""
@@ -103,23 +105,49 @@ def main():
     ):
         with st.spinner("Processing..."):
             if len(st.session_state.choices) > 0:
-                prompt = f'Example: \nWhich planet in our solar system is known as the "Red Planet"? \n(1) Jupiter \n(2) Mars \n(3) Venus \n(4) Neptune \nAnswer: Mars\n\n\n Question: {question}\n'
+                prompt = f'Example: \nWhich planet in our solar system is known as the "Red Planet"? \n(*) Jupiter \n(*) Mars \n(*) Venus \n(*) Neptune \nAnswer: Mars\n\n\n Question: {question}\n'
 
                 for i, choice in enumerate(st.session_state.choices):
-                    prompt += f"\n({i + 1}) {choice}"
+                    prompt += f"\n(*) {choice}"
 
-                prompt += f"\nContext: {st.session_state.context}\nAnswer: "
+                prompt += f"\nContext: {st.session_state.context}\nAnswer: [MASK]"
 
-                input_ids = st.session_state.tokenizer.encode(
-                    prompt, return_tensors="pt"
+                # input_ids = st.session_state.tokenizer.encode(
+                #     prompt, return_tensors="pt"
+                # )
+
+                # # Generate text from the model
+                # output = st.session_state.llm.generate(input_ids, max_length=100)
+                # generated_text = st.session_state.tokenizer.decode(
+                #     output[0], skip_special_tokens=True
+                # )
+                # st.success(generated_text)
+
+                encoded_input = st.session_state.tokenizer(prompt, return_tensors="pt")
+                output = st.session_state.llm.generate(
+                    **encoded_input,
+                    max_length=100,
+                    # num_beams=5,
+                    # early_stopping=True,
                 )
 
-                # Generate text from the model
-                output = st.session_state.llm.generate(input_ids, max_length=100)
                 generated_text = st.session_state.tokenizer.decode(
                     output[0], skip_special_tokens=True
                 )
-                st.success(generated_text)
+                # scores = output[0][0]
+                # st.write(scores)
+                # st.success(st.session_state.tokenizer.convert_ids_to_tokens(encoded_input["input_ids"][0]))
+                st.success(
+                    generated_text                    
+                )
+                # # Get the predicted token ids
+                # predicted_token_ids = output.logits.argmax(dim=-1)
+
+                # # Decode the predicted token ids
+                # decoded_output = st.session_state.tokenizer.decode(predicted_token_ids[0], skip_special_tokens=True)
+
+                # # Display the decoded output using Streamlit
+                # st.success(decoded_output)
 
             else:
                 st.error("Please enter at least one choice!")
