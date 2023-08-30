@@ -32,8 +32,8 @@ def get_llm():
     #     # model_kwargs={"temperature": 0.1, "max_length": 512}
     # )
 
-    llm = AutoModelForSeq2SeqLM.from_pretrained("google/flan-t5-base")
-    tokenizer = AutoTokenizer.from_pretrained("google/flan-t5-base")
+    llm = AutoModelForSeq2SeqLM.from_pretrained("google/flan-t5-xl")
+    tokenizer = AutoTokenizer.from_pretrained("google/flan-t5-xl")
 
     return tokenizer, llm
 
@@ -103,10 +103,10 @@ def main():
     ):
         with st.spinner("Processing..."):
             if len(st.session_state.choices) > 0:
-                prompt = f'Example: \nWhich planet in our solar system is known as the "Red Planet"? \n* Jupiter \n* Mars \n* Venus \n* Neptune \nAnswer: Mars\n\n\n Question: {question}\n'
+                prompt = f'Example: \nWhich planet in our solar system is known as the "Red Planet"? \n(1) Jupiter \n(2) Mars \n(3) Venus \n(4) Neptune \nAnswer: Mars\n\n\n Question: {question}\n'
 
                 for i, choice in enumerate(st.session_state.choices):
-                    prompt += f"\n* {choice}"
+                    prompt += f"\n({i + 1}) {choice}"
 
                 prompt += f"\nContext: {st.session_state.context}\nAnswer: "
 
