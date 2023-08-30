@@ -1,41 +1,35 @@
 import streamlit as st
-from dotenv import load_dotenv
-from langchain.text_splitter import CharacterTextSplitter
-from langchain.embeddings import HuggingFaceInstructEmbeddings
-
-# from langchain.question_answering import QuestionAnswering
-from langchain.vectorstores import FAISS
-from langchain.llms import HuggingFaceHub
-from transformers import AutoTokenizer, AutoModel, AutoModelForSeq2SeqLM
+import replicate
+import os
 
 
-def get_text_chunks(text):
-    text_splitter = CharacterTextSplitter(
-        separator="\n", chunk_size=1000, chunk_overlap=200, length_function=len
+def get_api_key():
+    if "REPLICATE_API_TOKEN" in st.secrets:
+        st.session_state.replicate_api = st.secrets["REPLICATE_API_TOKEN"]
+
+        os.environ["REPLICATE_API_TOKEN"] = st.session_state.replicate_api
+
+
+def get_answer_from_api(question):
+    prompt = f'Example: \nWhich planet in our solar system is known as the "Red Planet"? \n(*) Jupiter \n(*) Mars \n(*) Venus \n(*) Neptune \nAnswer: Mars\n\n\n Question: {question}\n'
+
+    for i, choice in enumerate(st.session_state.choices):
+        prompt += f"\n(*) {choice}"
+
+    prompt += f"\nContext: {st.session_state.context}\nAnswer: "
+
+    # Generate the MCQ response
+    response = replicate.run(
+        "replicate/flan-t5-xl:7a216605843d87f5426a10d2cc6940485a232336ed04d655ef86b91e020e9210",
+        input={
+            "prompt": prompt,
+            "temperature": 0.1,
+            "top_p": 0.9,
+            "max_length": 512,
+            "repetition_penalty": 1,
+        },
     )
-
-    chunks = text_splitter.split_text(text)
-
-    return chunks
-
-
-def get_vectorestore(text_chunks):
-    embeddings = HuggingFaceInstructEmbeddings(model_name="hkunlp/instructor-xl")
-    vectorstore = FAISS.from_texts(texts=text_chunks, embedding=embeddings)
-
-    return vectorstore
-
-
-def get_llm():
-    # llm = HuggingFaceHub(
-    #     model_name="microsoft/deberta-v3-large",
-    #     # model_kwargs={"temperature": 0.1, "max_length": 512}
-    # )
-
-    llm = AutoModelForSeq2SeqLM.from_pretrained("google/flan-t5-xl")
-    tokenizer = AutoTokenizer.from_pretrained("google/flan-t5-xl")
-
-    return tokenizer, llm
+    return response
 
 
 def add_choice(choice_num):
@@ -43,10 +37,8 @@ def add_choice(choice_num):
 
 
 def main():
-    load_dotenv()
-
     if "qa_disabled" not in st.session_state:
-        st.session_state["qa_disabled"] = True
+        st.session_state["qa_disabled"] = False
 
     if "context" not in st.session_state:
         st.session_state["context"] = None
@@ -62,6 +54,9 @@ def main():
 
     if "choice_count" not in st.session_state:
         st.session_state["choice_count"] = 1
+
+    if "replicate_api" not in st.session_state:
+        st.session_state["replicate_api"] = None
 
     st.set_page_config(page_title="Scique", page_icon=":book:", layout="wide")
     st.header("Scique")
@@ -87,10 +82,6 @@ def main():
         st.session_state.choice_count = 1
         st.experimental_rerun()
 
-    
-
-    # st.write(st.session_state.choices)
-
     s = ""
 
     for i in st.session_state.choices:
@@ -103,37 +94,28 @@ def main():
     ):
         with st.spinner("Processing..."):
             if len(st.session_state.choices) > 0:
-                prompt = f'Example: \nWhich planet in our solar system is known as the "Red Planet"? \n(1) Jupiter \n(2) Mars \n(3) Venus \n(4) Neptune \nAnswer: Mars\n\n\n Question: {question}\n'
+                response = get_answer_from_api(question)
 
-                for i, choice in enumerate(st.session_state.choices):
-                    prompt += f"\n({i + 1}) {choice}"
-
-                prompt += f"\nContext: {st.session_state.context}\nAnswer: "
-
-                input_ids = st.session_state.tokenizer.encode(
-                    prompt, return_tensors="pt"
-                )
-
-                # Generate text from the model
-                output = st.session_state.llm.generate(input_ids, max_length=100)
-                generated_text = st.session_state.tokenizer.decode(
-                    output[0], skip_special_tokens=True
-                )
-                st.success(generated_text)
+                # placeholder = st.empty()
+                full_response = ""
+                for item in response:
+                    full_response += item
+                    # placeholder.markdown(full_response)
+                st.success("Answer: " + full_response)
 
             else:
                 st.error("Please enter at least one choice!")
 
     with st.sidebar:
-        st.subheader("Enter context for the Question Answering model:")
+        st.subheader("Enter context for the Question:")
         context = st.text_area("Enter your text here:", height=300)
 
         if st.button("Process", key="process_context"):
+            st.session_state.qa_disabled = False
+
             with st.spinner("Processing..."):
                 if st.session_state["context"] != "":
                     st.session_state.context = context
-                    st.session_state.tokenizer, st.session_state.llm = get_llm()
-                    st.session_state.qa_disabled = False
 
                 else:
                     st.error("Please enter a context!")
